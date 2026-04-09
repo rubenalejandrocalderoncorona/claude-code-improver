@@ -2,7 +2,9 @@
 # Claude Code notification + iTerm2 tab-rename hook
 # Events: PermissionRequest, Stop, SessionStart, PreToolUse, PostToolUse
 #
-# Requires: jq, terminal-notifier (brew install terminal-notifier)
+# Uses iTerm2's native OSC 9 notification escape — clicking "Show" in the
+# notification redirects to the exact session that needs attention.
+# Requires: jq
 
 INPUT=$(cat)
 EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
@@ -11,39 +13,65 @@ PROJECT=$(basename "$CWD")
 
 NOTIFIER="/opt/homebrew/bin/terminal-notifier"
 
-# ── iTerm2 tab title ───────────────────────────────────────────────────────
-set_tab_title() {
-  local title="$1"
+# ── Find the TTY of the Claude process that spawned this hook ──────────────
+find_tty() {
+  local pid=$$
+  while [ "$pid" -gt 1 ]; do
+    local tty
+    tty=$(ps -p "$pid" -o tty= 2>/dev/null | tr -d ' ')
+    if [ -n "$tty" ] && [ "$tty" != "??" ]; then
+      echo "$tty"
+      return
+    fi
+    pid=$(ps -p "$pid" -o ppid= 2>/dev/null | tr -d ' ')
+  done
+}
+
+SESSION_TTY=$(find_tty)
+
+# ── Send iTerm2 native notification via OSC 9 ─────────────────────────────
+# OSC 9 causes iTerm2 to post a native notification attributed to itself.
+# Clicking "Show" in the banner focuses the exact session that sent it.
+# Separate title from body with a newline — iTerm2 renders the first line bold.
+notify_iterm() {
+  local msg="$1"
+  [ -z "$SESSION_TTY" ] && return
   osascript 2>/dev/null <<OSASCRIPT || true
     tell application "iTerm2"
-      tell current window
-        tell current tab
-          tell current session
-            set variable named "user.tabTitle" to "$title"
-          end tell
-        end tell
-      end tell
+      repeat with w in every window
+        repeat with t in every tab of w
+          repeat with s in every session of t
+            if tty of s contains "$SESSION_TTY" then
+              set esc to ASCII character 27
+              set bel to ASCII character 7
+              write text (esc & "]9;$msg" & bel)
+              return
+            end if
+          end repeat
+        end repeat
+      end repeat
     end tell
 OSASCRIPT
 }
 
-# ── Single notification — replaces previous one with same group ID ─────────
-# -group ensures only ONE notification per project is ever shown (no stacking).
-# -activate + clicking the banner brings iTerm2 to front.
-notify_iterm() {
+# ── iTerm2 tab title (targeted to this session by TTY) ────────────────────
+set_tab_title() {
   local title="$1"
-  local subtitle="$2"
-  local msg="$3"
-  local sound="${4:-Glass}"
-  "$NOTIFIER" \
-    -title "$title" \
-    -subtitle "$subtitle" \
-    -message "$msg" \
-    -sound "$sound" \
-    -group "claude-${PROJECT}" \
-    -activate com.googlecode.iterm2 \
-    -sender com.googlecode.iterm2 \
-    2>/dev/null || true
+  [ -z "$SESSION_TTY" ] && return
+  osascript 2>/dev/null <<OSASCRIPT || true
+    tell application "iTerm2"
+      repeat with w in every window
+        repeat with t in every tab of w
+          repeat with s in every session of t
+            if tty of s contains "$SESSION_TTY" then
+              set variable named "user.tabTitle" to "$title"
+              return
+            end if
+          end repeat
+        end repeat
+      end repeat
+    end tell
+OSASCRIPT
 }
 
 # ── Event dispatch ─────────────────────────────────────────────────────────
@@ -59,17 +87,13 @@ case "$EVENT" in
 
   PostToolUse)
     set_tab_title "${PROJECT} [claude]"
-    # Remove any stale permission notification once the tool ran
+    # Clear any stale terminal-notifier banners from before
     "$NOTIFIER" -remove "claude-${PROJECT}" 2>/dev/null || true
     ;;
 
   Stop)
     set_tab_title "${PROJECT} [waiting]"
-    notify_iterm \
-      "Claude — ${PROJECT}" \
-      "Session finished" \
-      "Claude thinking session finished. Your input is needed." \
-      "Purr"
+    notify_iterm "Claude — ${PROJECT}: session finished. Your input is needed."
     ;;
 
   PermissionRequest)
@@ -80,11 +104,7 @@ case "$EVENT" in
       else (.tool_input | to_entries | map("\(.key): \(.value)") | join(", "))
       end' | cut -c1-80)
     set_tab_title "${PROJECT} [AUTH NEEDED]"
-    notify_iterm \
-      "Claude — ${PROJECT}" \
-      "Requires permission: ${TOOL}" \
-      "${CMD}" \
-      "Glass"
+    notify_iterm "Claude — ${PROJECT}: permission needed for ${TOOL}: ${CMD}"
     ;;
 
 esac
