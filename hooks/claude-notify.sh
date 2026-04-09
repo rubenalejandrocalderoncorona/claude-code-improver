@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Claude Code notification + iTerm2 tab-rename hook
-# Events: Notification, Stop, SessionStart, PreToolUse, PostToolUse
+# Events: PermissionRequest, Stop, SessionStart, PreToolUse, PostToolUse
 #
 # Requires: jq, terminal-notifier (brew install terminal-notifier)
 
@@ -9,12 +9,9 @@ EVENT=$(echo "$INPUT" | jq -r '.hook_event_name // empty')
 CWD=$(echo "$INPUT" | jq -r '.cwd // empty')
 PROJECT=$(basename "$CWD")
 
-NOTIFIER=$(command -v terminal-notifier 2>/dev/null || echo "/opt/homebrew/bin/terminal-notifier")
+NOTIFIER="/opt/homebrew/bin/terminal-notifier"
 
 # ── iTerm2 tab title ───────────────────────────────────────────────────────
-# Sets user.tabTitle on the CURRENT iTerm2 session.
-# Requires iTerm2 profile Title=128 with Custom Tab Title = \(user.tabTitle)
-# so it renders our variable and ignores the job name entirely.
 set_tab_title() {
   local title="$1"
   osascript 2>/dev/null <<OSASCRIPT || true
@@ -30,17 +27,20 @@ set_tab_title() {
 OSASCRIPT
 }
 
-# ── Notification attributed to iTerm2 (not Script Editor) ─────────────────
-# terminal-notifier with -sender com.googlecode.iterm2 makes the notification
-# show the iTerm2 icon. Clicking it activates iTerm2 directly.
+# ── Single notification — replaces previous one with same group ID ─────────
+# -group ensures only ONE notification per project is ever shown (no stacking).
+# -activate + clicking the banner brings iTerm2 to front.
 notify_iterm() {
   local title="$1"
-  local msg="$2"
-  local sound="${3:-Glass}"
+  local subtitle="$2"
+  local msg="$3"
+  local sound="${4:-Glass}"
   "$NOTIFIER" \
     -title "$title" \
+    -subtitle "$subtitle" \
     -message "$msg" \
     -sound "$sound" \
+    -group "claude-${PROJECT}" \
     -activate com.googlecode.iterm2 \
     -sender com.googlecode.iterm2 \
     2>/dev/null || true
@@ -59,24 +59,32 @@ case "$EVENT" in
 
   PostToolUse)
     set_tab_title "${PROJECT} [claude]"
+    # Remove any stale permission notification once the tool ran
+    "$NOTIFIER" -remove "claude-${PROJECT}" 2>/dev/null || true
     ;;
 
   Stop)
     set_tab_title "${PROJECT} [waiting]"
-    notify_iterm "Claude — ${PROJECT}" "Finished. Your input is needed." "Purr"
+    notify_iterm \
+      "Claude — ${PROJECT}" \
+      "Session finished" \
+      "Claude thinking session finished. Your input is needed." \
+      "Purr"
     ;;
 
-  Notification)
-    NOTIF_TYPE=$(echo "$INPUT" | jq -r '.notification_type // "idle"')
-    case "$NOTIF_TYPE" in
-      permission_prompt)
-        set_tab_title "${PROJECT} [AUTH NEEDED]"
-        notify_iterm "Claude — ${PROJECT}" "⚠ Permission request waiting for your answer." "Glass"
-        ;;
-      *)
-        notify_iterm "Claude — ${PROJECT}" "Needs your attention (${NOTIF_TYPE})." "Glass"
-        ;;
-    esac
+  PermissionRequest)
+    TOOL=$(echo "$INPUT" | jq -r '.tool_name // "unknown"')
+    CMD=$(echo "$INPUT" | jq -r '
+      if .tool_name == "Bash" then .tool_input.command // ""
+      elif .tool_name == "Write" or .tool_name == "Edit" then .tool_input.file_path // ""
+      else (.tool_input | to_entries | map("\(.key): \(.value)") | join(", "))
+      end' | cut -c1-80)
+    set_tab_title "${PROJECT} [AUTH NEEDED]"
+    notify_iterm \
+      "Claude — ${PROJECT}" \
+      "Requires permission: ${TOOL}" \
+      "${CMD}" \
+      "Glass"
     ;;
 
 esac

@@ -33,11 +33,11 @@ echo "✓ Hook script installed to $HOOK_SCRIPT"
 
 # ── 3. Merge hooks into ~/.claude/settings.json ───────────────────────────
 HOOKS_JSON='{
-  "SessionStart":  [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
-  "Stop":          [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
-  "Notification":  [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
-  "PreToolUse":    [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
-  "PostToolUse":   [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}]
+  "SessionStart":      [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
+  "Stop":              [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
+  "PermissionRequest": [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
+  "PreToolUse":        [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}],
+  "PostToolUse":       [{"matcher":"","hooks":[{"type":"command","command":"~/.claude/hooks/claude-notify.sh","async":true}]}]
 }'
 
 if [ -f "$SETTINGS" ]; then
