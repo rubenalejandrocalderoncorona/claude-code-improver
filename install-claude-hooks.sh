@@ -82,8 +82,10 @@ if not bookmarks:
     sys.exit(0)
 
 profile = bookmarks[0]
-profile["Title"] = 128                      # Custom title format mode
+profile["Title"] = 128                       # Custom title format mode
 profile["Custom Tab Title"] = r"\(user.tabTitle)"  # Use our variable
+profile["BM Growl"] = False                  # Disable iTerm2's own OSC 9 notifications
+                                             # (prevents double alerts alongside our alerter ones)
 
 prefs["New Bookmarks"] = bookmarks
 with open(plist_path, 'wb') as f:

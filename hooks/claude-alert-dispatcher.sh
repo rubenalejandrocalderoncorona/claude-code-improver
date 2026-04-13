@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-alert-dispatcher.sh
+# claude-alert-dispatcher.sh  v1.0.1
 # Called by claude-notify.sh in background to show an alerter notification
 # and handle the user's button click.
 #
@@ -16,6 +16,7 @@ MSG="$6"
 
 ALERTER="/opt/homebrew/bin/alerter"
 
+# Focus the iTerm2 session matching TTY
 focus_session() {
   osascript 2>/dev/null <<OSASCRIPT || true
     tell application "iTerm2"
@@ -34,6 +35,8 @@ focus_session() {
 OSASCRIPT
 }
 
+# Send "y" + newline to the Claude session via "tell s / write text" —
+# must be inside "tell s" block so it targets the specific session, not current.
 send_approve() {
   osascript 2>/dev/null <<OSASCRIPT || true
     tell application "iTerm2"
@@ -41,7 +44,9 @@ send_approve() {
         repeat with t in every tab of w
           repeat with s in every session of t
             if tty of s contains "$TTY" then
-              write text "y"
+              tell s
+                write text "y"
+              end tell
               return
             end if
           end repeat
