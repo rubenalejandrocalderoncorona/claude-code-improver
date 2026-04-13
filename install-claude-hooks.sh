@@ -17,19 +17,27 @@ echo "── Claude Code Notification Hook Installer ──"
 if ! command -v jq &>/dev/null; then
   echo "Installing jq..."; brew install jq
 fi
-if ! command -v terminal-notifier &>/dev/null; then
-  echo "Installing terminal-notifier..."; brew install terminal-notifier
-fi
 if ! command -v osascript &>/dev/null; then
   echo "ERROR: osascript not found. This script requires macOS."; exit 1
 fi
-echo "✓ Dependencies OK (jq, terminal-notifier)"
+# alerter: multi-button macOS notifications with click callbacks
+if [ ! -f "/opt/homebrew/bin/alerter" ]; then
+  echo "Installing alerter..."
+  TMP=$(mktemp -d)
+  curl -sL "https://github.com/vjeantet/alerter/releases/download/v26.5/alerter-26.5.zip" -o "$TMP/alerter.zip"
+  unzip -q "$TMP/alerter.zip" -d "$TMP"
+  cp "$TMP/alerter" /opt/homebrew/bin/alerter
+  chmod +x /opt/homebrew/bin/alerter
+  rm -rf "$TMP"
+fi
+echo "✓ Dependencies OK (jq, alerter)"
 
-# ── 2. Install hook script ─────────────────────────────────────────────────
+# ── 2. Install hook scripts ────────────────────────────────────────────────
 mkdir -p "$HOOK_DIR"
-cp "$SCRIPT_DIR/hooks/claude-notify.sh" "$HOOK_SCRIPT"
-chmod +x "$HOOK_SCRIPT"
-echo "✓ Hook script installed to $HOOK_SCRIPT"
+cp "$SCRIPT_DIR/hooks/claude-notify.sh" "$HOOK_DIR/claude-notify.sh"
+cp "$SCRIPT_DIR/hooks/claude-alert-dispatcher.sh" "$HOOK_DIR/claude-alert-dispatcher.sh"
+chmod +x "$HOOK_DIR/claude-notify.sh" "$HOOK_DIR/claude-alert-dispatcher.sh"
+echo "✓ Hook scripts installed to $HOOK_DIR"
 
 # ── 3. Merge hooks into ~/.claude/settings.json ───────────────────────────
 HOOKS_JSON='{
