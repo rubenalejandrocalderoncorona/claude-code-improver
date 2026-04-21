@@ -24,17 +24,21 @@ That's it. The script installs dependencies, compiles the hotkey app, wires up t
 
 ## Required permissions (one-time, after install)
 
-Two macOS permissions need to be granted manually:
-
 **1. iTerm2 — notification alerts** (for "Session finished" notifications)
 > System Settings → Notifications → iTerm2 → Alert Style: **Alerts**
 
 **2. Terminal — notification alerts** (for permission/question notifications)
 > System Settings → Notifications → Terminal → Alert Style: **Alerts**
 
-**Restart iTerm2** after install so the custom tab title format takes effect.
+**3. ClaudeApproveAll — Input Monitoring** (for the global shortcut)
+> System Settings → Privacy & Security → Input Monitoring → **add ClaudeApproveAll**
 
-No Accessibility permission is required — the global shortcut uses Carbon `RegisterEventHotKey`, which works without it.
+System Settings opens automatically on first launch. After granting, restart the daemon:
+```bash
+launchctl kickstart -k gui/$(id -u)/com.claudecodehooks.approve-all-hotkey
+```
+
+**Restart iTerm2** after install so the custom tab title format takes effect.
 
 ## Verify
 
@@ -78,7 +82,7 @@ install-claude-hooks.sh       One-command setup
 - For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — the script blocks on `alerter`, then writes a `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
 - For `Stop` it runs the dispatcher in the background — clicking Show calls `tell w to select t` + `select s` + `activate` to bring the exact tab forward.
 - Permission and question notifications use `--sender com.apple.Terminal` so clicking Approve/answer buttons does **not** bring any terminal forward.
-- The global shortcut is a compiled Swift background app (`LSUIElement`) using Carbon `RegisterEventHotKey` — no Accessibility permission required. It runs as a `LaunchAgent` and survives reboots.
+- The global shortcut is a compiled Swift background app (`LSUIElement`) using a `CGEventTap` in listen-only mode. It requires **Input Monitoring** permission (not Accessibility). It runs as a `LaunchAgent`, auto-prompts on first launch, and survives reboots.
 
 ## Changelog
 
