@@ -72,17 +72,18 @@ run_test() {
     approve-all)
       echo ""
       echo "TEST: Approve-All toggle"
+      FLAG="$HOME/.claude/hooks/approve-all.flag"
+      FLAG_WAS_SET=0
+      [ -f "$FLAG" ] && FLAG_WAS_SET=1
+      # Guarantee flag is restored to its original state on exit or interrupt
+      trap '[ "$FLAG_WAS_SET" = "1" ] && touch "$FLAG" || rm -f "$FLAG"; trap - EXIT INT TERM' EXIT INT TERM
+
       info "Running toggle — watch for a notification confirming ON or OFF."
       bash "$TOGGLE"
       pass "toggle executed"
       echo ""
       info "TEST: Permission with Approve-All ON (should auto-approve silently)"
-      FLAG="$HOME/.claude/hooks/approve-all.flag"
-      if [ ! -f "$FLAG" ]; then
-        touch "$FLAG"
-        echo "  (flag created for test)"
-        CREATED=1
-      fi
+      touch "$FLAG"
       RESULT=$(bash "$DISPATCHER" permission \
         "$TTY_DEVICE" \
         "claude-test-perm-auto" \
@@ -95,11 +96,15 @@ run_test() {
       else
         echo "  FAIL: expected allow, got: $RESULT"
       fi
-      # Restore flag state
-      if [ "${CREATED:-0}" = "1" ]; then
+      # Restore original flag state
+      if [ "$FLAG_WAS_SET" = "1" ]; then
+        touch "$FLAG"
+        echo "  (flag restored to ON)"
+      else
         rm -f "$FLAG"
-        echo "  (flag removed after test)"
+        echo "  (flag restored to OFF)"
       fi
+      trap - EXIT INT TERM
       ;;
 
     all)
