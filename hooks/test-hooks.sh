@@ -107,21 +107,64 @@ run_test() {
       trap - EXIT INT TERM
       ;;
 
+    shortcut)
+      echo ""
+      echo "TEST: Global shortcut (Cmd+Ctrl+B)"
+
+      # Check skhd is running
+      if ! pgrep -x skhd > /dev/null 2>&1; then
+        echo "  FAIL: skhd is not running."
+        echo "  Run: skhd --start-service"
+        echo "  Then grant Accessibility: System Settings → Privacy & Security → Accessibility → add skhd"
+        return
+      fi
+      info "skhd running (PID $(pgrep -x skhd))"
+
+      FLAG="$HOME/.claude/hooks/approve-all.flag"
+      FLAG_WAS_SET=0
+      [ -f "$FLAG" ] && FLAG_WAS_SET=1
+      BEFORE_STATE=$FLAG_WAS_SET
+
+      echo ""
+      echo "  ► Press Cmd+Ctrl+B now (you have 20 seconds, from ANY app)..."
+      echo ""
+
+      FIRED=0
+      for i in $(seq 1 20); do
+        sleep 1
+        CURRENT=0
+        [ -f "$FLAG" ] && CURRENT=1
+        if [ "$CURRENT" != "$BEFORE_STATE" ]; then
+          FIRED=1
+          break
+        fi
+      done
+
+      if [ "$FIRED" = "1" ]; then
+        pass "shortcut fired — approve-all flag toggled"
+        # Restore original state
+        if [ "$FLAG_WAS_SET" = "1" ]; then touch "$FLAG"; else rm -f "$FLAG"; fi
+        echo "  (flag restored to original state)"
+      else
+        echo "  FAIL: flag state did not change within 20 seconds."
+        echo "  Check: System Settings → Privacy & Security → Accessibility → skhd enabled?"
+        echo "  Check: skhd log: cat /tmp/skhd_\$(whoami).err.log"
+      fi
+      ;;
+
     all)
       run_test permission
       run_test stop
       run_test question
       run_test approve-all
+      run_test shortcut
       echo ""
       echo "── All tests complete ──"
-      echo "Global shortcut test: press Cmd+Shift+A from any app."
-      echo "  You should hear a sound and see a notification confirming ON or OFF."
-      echo "  Requires ClaudeApproveAll.app running + Accessibility permission granted."
       ;;
 
     *)
       echo "Unknown test: $name"
-      echo "Usage: bash test-hooks.sh [permission|stop|question|approve-all|all]"
+      echo "Usage: bash test-hooks.sh [permission|stop|question|approve-all|shortcut|all]"
       exit 1
       ;;
   esac

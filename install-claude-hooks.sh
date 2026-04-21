@@ -101,57 +101,30 @@ print("  → Restart iTerm2 (or reload prefs) for this to take effect.")
 PYEOF
 fi
 
-# ── 5. Build and install ClaudeApproveAll.app (global Cmd+Shift+A hotkey) ──
-# Replaces the Automator Quick Action approach (which only fires when an app has
-# text selected). This is a tiny LSUIElement background app that registers a
-# true global CGEventTap, so the shortcut works from anywhere on macOS.
-APP_SRC="$SCRIPT_DIR/hotkey-app"
-APP_DEST="$HOME/Applications/ClaudeApproveAll.app"
-APP_BINARY="$APP_DEST/Contents/MacOS/ClaudeApproveAll"
-LAUNCH_AGENT_PLIST="$HOME/Library/LaunchAgents/com.claudecodehooks.approve-all-hotkey.plist"
+# ── 5. Install skhd for global Cmd+Ctrl+B hotkey ──────────────────────────
+# skhd is a properly signed hotkey daemon (Homebrew). It requires Accessibility
+# permission — the only reliable way to get a global hotkey on modern macOS
+# without an Apple Developer certificate.
+SKHD_CONFIG="$HOME/.config/skhd/skhdrc"
 
-echo "Building ClaudeApproveAll.app..."
-mkdir -p "$APP_DEST/Contents/MacOS"
-mkdir -p "$APP_DEST/Contents/Resources"
-
-# Compile the Swift source
-if swiftc -O -o "$APP_BINARY" "$APP_SRC/main.swift" 2>/dev/null; then
-  echo "✓ Compiled ClaudeApproveAll binary"
-else
-  echo "ERROR: Swift compilation failed. Ensure Xcode command-line tools are installed."
-  echo "  Run: xcode-select --install"
-  exit 1
+if ! command -v skhd &>/dev/null; then
+  echo "Installing skhd..."
+  brew install koekeishiya/formulae/skhd
 fi
+echo "✓ skhd installed"
 
-cp "$APP_SRC/Info.plist" "$APP_DEST/Contents/Info.plist"
-echo "✓ ClaudeApproveAll.app installed to $APP_DEST"
+mkdir -p "$(dirname "$SKHD_CONFIG")"
+# Write the hotkey binding (idempotent — overwrites only our line if present)
+if ! grep -q "toggle-approve-all" "$SKHD_CONFIG" 2>/dev/null; then
+  echo 'cmd + ctrl - b : bash ~/.claude/hooks/toggle-approve-all.sh' >> "$SKHD_CONFIG"
+fi
+echo "✓ skhd config written: $SKHD_CONFIG"
 
-# Install as a LaunchAgent so it starts automatically at login
-cat > "$LAUNCH_AGENT_PLIST" << LAUNCHD
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key>
-  <string>com.claudecodehooks.approve-all-hotkey</string>
-  <key>ProgramArguments</key>
-  <array>
-    <string>${APP_BINARY}</string>
-  </array>
-  <key>RunAtLoad</key>
-  <true/>
-  <key>KeepAlive</key>
-  <true/>
-</dict>
-</plist>
-LAUNCHD
+# Start skhd service (will prompt for Accessibility if not yet granted)
+skhd --start-service 2>/dev/null || true
+echo "✓ skhd service started"
 
-# Start the agent now (stop any previous instance first)
-launchctl unload "$LAUNCH_AGENT_PLIST" 2>/dev/null || true
-launchctl load -w "$LAUNCH_AGENT_PLIST"
-echo "✓ LaunchAgent installed and started: $LAUNCH_AGENT_PLIST"
-
-# ── 6. Remind about macOS notification permissions ─────────────────────────
+# ── 6. Remind about macOS permissions ─────────────────────────────────────
 echo ""
 echo "── Done ────────────────────────────────────────────────────────────"
 echo ""
@@ -161,9 +134,9 @@ echo "  System Settings → Notifications → Terminal  → Alert Style: Alerts"
 echo ""
 echo "REQUIRED: Restart iTerm2 so the custom tab title format takes effect."
 echo ""
-echo "REQUIRED FOR SHORTCUT (Cmd+Ctrl+B): Grant Input Monitoring to ClaudeApproveAll:"
-echo "  System Settings → Privacy & Security → Input Monitoring → add ClaudeApproveAll"
-echo "  (System Settings opened automatically. After granting, run:)"
-echo "    launchctl kickstart -k gui/\$(id -u)/com.claudecodehooks.approve-all-hotkey"
+echo "REQUIRED FOR SHORTCUT (Cmd+Ctrl+B):"
+echo "  System Settings → Privacy & Security → Accessibility → add skhd"
+echo "  skhd is at: $(which skhd)"
+echo "  After granting, run: skhd --restart-service"
 echo ""
 echo "Verify hooks are loaded in Claude Code: /hooks"

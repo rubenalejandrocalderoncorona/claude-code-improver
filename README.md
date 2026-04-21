@@ -30,12 +30,13 @@ That's it. The script installs dependencies, compiles the hotkey app, wires up t
 **2. Terminal — notification alerts** (for permission/question notifications)
 > System Settings → Notifications → Terminal → Alert Style: **Alerts**
 
-**3. ClaudeApproveAll — Input Monitoring** (for the global shortcut)
-> System Settings → Privacy & Security → Input Monitoring → **add ClaudeApproveAll**
+**3. skhd — Accessibility** (for the global shortcut)
+> System Settings → Privacy & Security → Accessibility → **add skhd**
+> (`skhd` is at `/opt/homebrew/bin/skhd`)
 
-System Settings opens automatically on first launch. After granting, restart the daemon:
+After granting Accessibility to skhd, restart it:
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.claudecodehooks.approve-all-hotkey
+skhd --restart-service
 ```
 
 **Restart iTerm2** after install so the custom tab title format takes effect.
@@ -70,9 +71,6 @@ hooks/
   claude-alert-dispatcher.sh  Blocks on alerter, routes Approve/Show/answer clicks
   toggle-approve-all.sh       Toggles ~/.claude/hooks/approve-all.flag
   test-hooks.sh               Smoke tests for each notification type
-hotkey-app/
-  main.swift                  Global Carbon hotkey daemon (Cmd+Shift+A → toggle)
-  Info.plist                  LSUIElement app bundle config
 install-claude-hooks.sh       One-command setup
 ```
 
@@ -82,7 +80,7 @@ install-claude-hooks.sh       One-command setup
 - For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — the script blocks on `alerter`, then writes a `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
 - For `Stop` it runs the dispatcher in the background — clicking Show calls `tell w to select t` + `select s` + `activate` to bring the exact tab forward.
 - Permission and question notifications use `--sender com.apple.Terminal` so clicking Approve/answer buttons does **not** bring any terminal forward.
-- The global shortcut is a compiled Swift background app (`LSUIElement`) using a `CGEventTap` in listen-only mode. It requires **Input Monitoring** permission (not Accessibility). It runs as a `LaunchAgent`, auto-prompts on first launch, and survives reboots.
+- The global shortcut uses **`skhd`** (a properly signed Homebrew hotkey daemon). It requires Accessibility permission and runs as a LaunchAgent that starts at login. Config lives in `~/.config/skhd/skhdrc`.
 
 ## Changelog
 
