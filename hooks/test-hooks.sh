@@ -3,7 +3,7 @@
 # Usage: bash hooks/test-hooks.sh [test-name]
 #   test-name: permission | stop | question | approve-all | all (default: all)
 
-set -euo pipefail
+set -uo pipefail
 
 DISPATCHER="$(cd "$(dirname "$0")" && pwd)/claude-alert-dispatcher.sh"
 TOGGLE="$(cd "$(dirname "$0")" && pwd)/toggle-approve-all.sh"

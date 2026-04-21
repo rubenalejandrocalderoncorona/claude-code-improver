@@ -11,8 +11,8 @@
 #   If approve-all.flag exists → immediately prints allow JSON and exits.
 #   Otherwise shows alerter, blocks, then prints a JSON PermissionRequest
 #   decision to stdout so claude-notify.sh can forward it to Claude Code.
-#   Uses com.apple.scripteditor2 as sender so clicking Approve does NOT
-#   bring iTerm2 forward — the user stays in their current app.
+#   Uses com.apple.Terminal as sender — notification permission is pre-granted
+#   and clicking Approve does NOT bring Terminal forward (verified).
 #
 # stop mode (runs in background):
 #   Shows alerter with Show/Ignore. "Show" focuses the iTerm2 session.
@@ -23,7 +23,7 @@
 #   Shows alerter with each answer option as a button + "Show" button.
 #   Clicking an option prints a PreToolUse updatedInput JSON decision.
 #   Clicking Show focuses the session (no JSON — Claude shows its own dialog).
-#   Uses com.apple.scripteditor2 so clicking an answer doesn't open iTerm2.
+#   Uses com.apple.Terminal so clicking an answer doesn't open iTerm2.
 
 MODE="$1"
 TTY="$2"
@@ -73,7 +73,7 @@ if [ "$MODE" = "permission" ]; then
     --message "$MSG" \
     --actions "Approve" \
     --close-label "Dismiss" \
-    --sender com.apple.scripteditor2 \
+    --sender com.apple.Terminal \
     --group "$GROUP" \
     --sound "Glass" \
     2>/dev/null)
@@ -131,7 +131,7 @@ elif [ "$MODE" = "question" ]; then
     --message "$QUESTION_TEXT" \
     --actions "$ACTIONS" \
     --close-label "Dismiss" \
-    --sender com.apple.scripteditor2 \
+    --sender com.apple.Terminal \
     --group "$GROUP" \
     --sound "Glass" \
     2>/dev/null)
