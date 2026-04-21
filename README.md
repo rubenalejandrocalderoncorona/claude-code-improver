@@ -1,26 +1,16 @@
-# Claude Code Improver
+# Claude Code Hooks
 
-macOS quality-of-life hooks for Claude Code: iTerm2 tab status titles and actionable notifications.
+macOS notifications and global keyboard shortcut for Claude Code. Get actionable alerts when Claude needs permission or finishes a task — without leaving your current window.
 
 ## What it does
 
-| Event | Tab title | Notification | Buttons |
-|---|---|---|---|
-| Session starts | `project [claude]` | — | — |
-| Claude running a tool | `project [running]` | — | — |
-| Claude finished, needs input | `project [waiting]` | Title + "Session finished" + message | Click to focus session |
-| Permission request | `project [AUTH NEEDED]` | Title + tool name + full command | **Approve** (sends `y`) · Dismiss |
+| Event | Notification | Behavior |
+|---|---|---|
+| Permission request | Tool name + command | **Approve** without switching to terminal |
+| Session finished | "Claude has finished" | **Show** jumps to the exact iTerm2 tab |
+| AskUserQuestion | Question + answer buttons | Click to answer without switching windows |
 
-- **Approve** button sends the approval directly to Claude without switching windows
-- Clicking the notification body focuses the exact iTerm2 session that needs attention
-- Permission notifications clear automatically once the tool runs
-
-## Requirements
-
-- macOS
-- [iTerm2](https://iterm2.com)
-- [Homebrew](https://brew.sh)
-- [Claude Code](https://claude.ai/code)
+**Global shortcut `Cmd+Shift+A`** — toggles Approve-All mode. All future permission prompts are auto-approved silently. Press again to turn off.
 
 ## Install
 
@@ -30,63 +20,94 @@ cd claude-code-improver
 bash install-claude-hooks.sh
 ```
 
-The installer:
-1. Installs `jq` and `alerter` if missing
-2. Copies `hooks/claude-notify.sh` and `hooks/claude-alert-dispatcher.sh` to `~/.claude/hooks/`
-3. Merges hook entries into `~/.claude/settings.json`
-4. Patches your iTerm2 default profile to use `\(user.tabTitle)` as tab title format (suppresses the `(python)` / `(node)` suffix)
+That's it. The script installs dependencies, compiles the hotkey app, wires up the hooks, and starts everything.
 
-## Post-install steps
+## Required permissions (one-time, after install)
 
-**Allow notifications for iTerm2:**
-> System Settings → Notifications → iTerm2 → Allow Notifications → Alert Style: Alerts
+Three macOS permissions need to be granted manually:
 
-**Restart iTerm2** so the new tab title format takes effect.
+**1. Script Editor — notification alerts**
+> System Settings → Notifications → Script Editor → Alert Style: **Alerts**
 
-**Verify hooks are loaded** in Claude Code:
+*(Without this, Approve/question notifications appear as banners that disappear before you click.)*
+
+**2. iTerm2 — notification alerts**
+> System Settings → Notifications → iTerm2 → Alert Style: **Alerts**
+
+*(Used for the "Session finished" notification.)*
+
+**3. ClaudeApproveAll — Accessibility (for global shortcut)**
+> System Settings → Privacy & Security → Accessibility → **add ClaudeApproveAll**
+
+*(The app will prompt you automatically on first launch — click "Open System Settings" in the dialog.)*
+
+**Restart iTerm2** after install so the custom tab title format takes effect.
+
+## Verify
+
+Run hooks smoke tests:
+
+```bash
+bash hooks/test-hooks.sh
+```
+
+Individual tests:
+
+```bash
+bash hooks/test-hooks.sh permission   # Approve button, no focus steal
+bash hooks/test-hooks.sh stop         # Show button, correct tab focus
+bash hooks/test-hooks.sh question     # Answer buttons, no focus steal
+bash hooks/test-hooks.sh approve-all  # Auto-approve + toggle
+```
+
+Check hooks are loaded in Claude Code:
 ```
 /hooks
 ```
 
-## How it works
-
-Claude Code fires hook events at key moments. `claude-notify.sh` receives a JSON payload on stdin, then:
-
-1. Walks its process tree to find the TTY of the Claude process that spawned it
-2. Sets `user.tabTitle` on that specific iTerm2 session via AppleScript (clean tab title, no job-name suffix)
-3. Launches `claude-alert-dispatcher.sh` in the background, which calls `alerter` and blocks until the user clicks
-
-When the user clicks **Approve**, the dispatcher uses AppleScript `write text "y"` to send the confirmation directly to the Claude session — no window switch needed.
-
-When the user clicks the notification body, the dispatcher calls `select s` + `activate` on the exact iTerm2 session identified by TTY.
-
-`alerter` is used instead of `terminal-notifier` because it supports custom action buttons with click callbacks. The `--sender com.googlecode.iterm2` flag gives the notification the iTerm2 icon.
-
 ## Files
 
 ```
-hooks/claude-notify.sh            # Main hook — tab titles + launches dispatcher
-hooks/claude-alert-dispatcher.sh  # Blocks on alerter, handles Approve/Show clicks
-install-claude-hooks.sh           # One-command setup for any macOS machine
+hooks/
+  claude-notify.sh            Main hook — tab titles + dispatches notifications
+  claude-alert-dispatcher.sh  Blocks on alerter, routes Approve/Show/answer clicks
+  toggle-approve-all.sh       Toggles ~/.claude/hooks/approve-all.flag
+  test-hooks.sh               Smoke tests for each notification type
+hotkey-app/
+  main.swift                  Global CGEventTap daemon (Cmd+Shift+A → toggle)
+  Info.plist                  LSUIElement app bundle config
+install-claude-hooks.sh       One-command setup
 ```
+
+## How it works
+
+- `claude-notify.sh` receives a JSON event on stdin, finds the TTY of the Claude process via process-tree walk, and sets `user.tabTitle` on that specific iTerm2 session via AppleScript.
+- For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — the script blocks on `alerter`, then writes a `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
+- For `Stop` it runs the dispatcher in the background — clicking Show calls `tell w to select t` + `select s` + `activate` to bring the exact tab forward.
+- Permission and question notifications use `--sender com.apple.scripteditor2` so clicking Approve/answer buttons does **not** bring iTerm2 forward.
+- The global shortcut is a compiled Swift background app (`LSUIElement`) that installs a system-wide `CGEventTap`. It runs as a `LaunchAgent` and survives reboots.
 
 ## Changelog
 
+### v2.0.0
+- **Fix: Approve no longer opens the terminal** — switched permission/question notification sender from `com.googlecode.iterm2` to `com.apple.scripteditor2`
+- **Fix: Show now jumps to the correct iTerm2 tab** — `focus_session` now calls `tell w to select t` before `select s`
+- **Fix: global Cmd+Shift+A shortcut now works everywhere** — replaced broken Automator Quick Action with a compiled Swift `CGEventTap` daemon installed as a `LaunchAgent`
+- Added `hooks/test-hooks.sh` for smoke-testing each notification type
+- Added `hotkey-app/` Swift source for the global hotkey daemon
+
+### v1.0.1
+- Fix double alerts and Approve button not sending to correct session
+
 ### v1.0.0
-- **Approve button**: click Approve in the permission notification to send `y` to Claude without switching windows
-- **Two distinct notification types**: permission alerts have [Approve] + [Dismiss]; finish alerts have click-to-focus only
-- **Rich context**: notification shows project name, tool name, and the full command/file being requested
-- Replace OSC 9 iTerm2 escape with `alerter` for full button control; session focus via AppleScript TTY lookup
-- Separate `claude-alert-dispatcher.sh` handles blocking alerter call + click routing in background
+- Approve button in permission notification — approves without switching windows
+- Two notification types: permission (Approve/Dismiss) and stop (Show/Ignore)
+- Rich context: project name, tool name, full command/file path
+- Session focus via AppleScript TTY lookup
 
 ### v0.0.2
-- Replace `terminal-notifier` with iTerm2's native OSC 9 notification escape
-- Clicking "Show" in the banner now correctly focuses the exact session that needs attention
-- TTY detection via process-tree walk ensures the right session is targeted across multiple windows
+- Replace `terminal-notifier` with iTerm2 OSC 9 notifications
+- Clicking Show focuses the exact session
 
 ### v0.0.1
-- Switch from `Notification` to `PermissionRequest` hook event — fires exactly once, includes tool name and command
-- Use `terminal-notifier -group` to replace stale notifications instead of stacking them
-- Notification shows title / subtitle (tool) / message (command) in a clear 3-line format
-- `PostToolUse` clears the permission notification automatically once the tool runs
-
+- Initial: `PermissionRequest` hook with `terminal-notifier`
