@@ -113,11 +113,16 @@ if ! command -v hs &>/dev/null && [ ! -d "/Applications/Hammerspoon.app" ]; then
 fi
 echo "✓ Hammerspoon installed"
 
+HS_PRELUDE='hs.ipc.cliInstall()'
+HS_COMMENT='-- Claude Code: toggle approve-all mode with Cmd+Ctrl+B'
+HS_LINE='hs.hotkey.bind({"cmd","ctrl"},"b",function() hs.task.new("/bin/bash",nil,{os.getenv("HOME").."/.claude/hooks/toggle-approve-all.sh"}):start() end)'
+
 mkdir -p "$(dirname "$HS_CONFIG")"
-# Append our hotkey binding only if not already present
 if ! grep -q "toggle-approve-all" "$HS_CONFIG" 2>/dev/null; then
+  # Prepend ipc install (enables hs -c from terminal), then append hotkey
+  { echo "$HS_PRELUDE"; echo ""; cat "$HS_CONFIG" 2>/dev/null; } > "$HS_CONFIG.tmp" && mv "$HS_CONFIG.tmp" "$HS_CONFIG" || true
   echo "" >> "$HS_CONFIG"
-  echo "-- Claude Code: toggle approve-all mode with Cmd+Ctrl+B" >> "$HS_CONFIG"
+  echo "$HS_COMMENT" >> "$HS_CONFIG"
   echo "$HS_LINE" >> "$HS_CONFIG"
 fi
 echo "✓ Hammerspoon config written: $HS_CONFIG"
