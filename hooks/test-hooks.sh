@@ -111,14 +111,14 @@ run_test() {
       echo ""
       echo "TEST: Global shortcut (Cmd+Ctrl+B)"
 
-      # Check skhd is running
-      if ! pgrep -x skhd > /dev/null 2>&1; then
-        echo "  FAIL: skhd is not running."
-        echo "  Run: skhd --start-service"
-        echo "  Then grant Accessibility: System Settings → Privacy & Security → Accessibility → add skhd"
+      # Check Hammerspoon is running
+      if ! pgrep -x Hammerspoon > /dev/null 2>&1; then
+        echo "  FAIL: Hammerspoon is not running."
+        echo "  Run: open /Applications/Hammerspoon.app"
+        echo "  Then grant Accessibility when prompted and run: hs -c 'hs.reload()'"
         return
       fi
-      info "skhd running (PID $(pgrep -x skhd))"
+      info "Hammerspoon running (PID $(pgrep -x Hammerspoon))"
 
       FLAG="$HOME/.claude/hooks/approve-all.flag"
       FLAG_WAS_SET=0
@@ -147,8 +147,8 @@ run_test() {
         echo "  (flag restored to original state)"
       else
         echo "  FAIL: flag state did not change within 20 seconds."
-        echo "  Check: System Settings → Privacy & Security → Accessibility → skhd enabled?"
-        echo "  Check: skhd log: cat /tmp/skhd_\$(whoami).err.log"
+        echo "  Check: System Settings → Privacy & Security → Accessibility → Hammerspoon enabled?"
+        echo "  Check: hs -c 'hs.reload()' to reload config after granting permission"
       fi
       ;;
 

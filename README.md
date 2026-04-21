@@ -30,13 +30,11 @@ That's it. The script installs dependencies, compiles the hotkey app, wires up t
 **2. Terminal — notification alerts** (for permission/question notifications)
 > System Settings → Notifications → Terminal → Alert Style: **Alerts**
 
-**3. skhd — Accessibility** (for the global shortcut)
-> System Settings → Privacy & Security → Accessibility → **add skhd**
-> (`skhd` is at `/opt/homebrew/bin/skhd`)
+**3. Hammerspoon — Accessibility** (for the global shortcut)
 
-After granting Accessibility to skhd, restart it:
+Hammerspoon will prompt automatically on first launch. Click "Open System Settings", add **Hammerspoon.app** and toggle it ON, then reload:
 ```bash
-skhd --restart-service
+hs -c "hs.reload()"
 ```
 
 **Restart iTerm2** after install so the custom tab title format takes effect.
@@ -80,7 +78,7 @@ install-claude-hooks.sh       One-command setup
 - For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — the script blocks on `alerter`, then writes a `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
 - For `Stop` it runs the dispatcher in the background — clicking Show calls `tell w to select t` + `select s` + `activate` to bring the exact tab forward.
 - Permission and question notifications use `--sender com.apple.Terminal` so clicking Approve/answer buttons does **not** bring any terminal forward.
-- The global shortcut uses **`skhd`** (a properly signed Homebrew hotkey daemon). It requires Accessibility permission and runs as a LaunchAgent that starts at login. Config lives in `~/.config/skhd/skhdrc`.
+- The global shortcut uses **Hammerspoon** (a properly Apple-signed app). Config lives in `~/.hammerspoon/init.lua`. It requires Accessibility permission and starts at login.
 
 ## Changelog
 

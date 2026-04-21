@@ -101,28 +101,30 @@ print("  → Restart iTerm2 (or reload prefs) for this to take effect.")
 PYEOF
 fi
 
-# ── 5. Install skhd for global Cmd+Ctrl+B hotkey ──────────────────────────
-# skhd is a properly signed hotkey daemon (Homebrew). It requires Accessibility
-# permission — the only reliable way to get a global hotkey on modern macOS
-# without an Apple Developer certificate.
-SKHD_CONFIG="$HOME/.config/skhd/skhdrc"
+# ── 5. Install Hammerspoon for global Cmd+Ctrl+B hotkey ───────────────────
+# Hammerspoon is a properly Apple-signed app. It uses Accessibility permission
+# which macOS honours reliably — unlike ad-hoc signed or Homebrew CLI binaries.
+HS_CONFIG="$HOME/.hammerspoon/init.lua"
+HS_LINE='hs.hotkey.bind({"cmd","ctrl"},"b",function() hs.task.new("/bin/bash",nil,{os.getenv("HOME").."/.claude/hooks/toggle-approve-all.sh"}):start() end)'
 
-if ! command -v skhd &>/dev/null; then
-  echo "Installing skhd..."
-  brew install koekeishiya/formulae/skhd
+if ! command -v hs &>/dev/null && [ ! -d "/Applications/Hammerspoon.app" ]; then
+  echo "Installing Hammerspoon..."
+  brew install --cask hammerspoon
 fi
-echo "✓ skhd installed"
+echo "✓ Hammerspoon installed"
 
-mkdir -p "$(dirname "$SKHD_CONFIG")"
-# Write the hotkey binding (idempotent — overwrites only our line if present)
-if ! grep -q "toggle-approve-all" "$SKHD_CONFIG" 2>/dev/null; then
-  echo 'cmd + ctrl - b : bash ~/.claude/hooks/toggle-approve-all.sh' >> "$SKHD_CONFIG"
+mkdir -p "$(dirname "$HS_CONFIG")"
+# Append our hotkey binding only if not already present
+if ! grep -q "toggle-approve-all" "$HS_CONFIG" 2>/dev/null; then
+  echo "" >> "$HS_CONFIG"
+  echo "-- Claude Code: toggle approve-all mode with Cmd+Ctrl+B" >> "$HS_CONFIG"
+  echo "$HS_LINE" >> "$HS_CONFIG"
 fi
-echo "✓ skhd config written: $SKHD_CONFIG"
+echo "✓ Hammerspoon config written: $HS_CONFIG"
 
-# Start skhd service (will prompt for Accessibility if not yet granted)
-skhd --start-service 2>/dev/null || true
-echo "✓ skhd service started"
+# Launch Hammerspoon (it will prompt for Accessibility on first run)
+open /Applications/Hammerspoon.app 2>/dev/null || true
+echo "✓ Hammerspoon launched"
 
 # ── 6. Remind about macOS permissions ─────────────────────────────────────
 echo ""
@@ -135,8 +137,8 @@ echo ""
 echo "REQUIRED: Restart iTerm2 so the custom tab title format takes effect."
 echo ""
 echo "REQUIRED FOR SHORTCUT (Cmd+Ctrl+B):"
-echo "  System Settings → Privacy & Security → Accessibility → add skhd"
-echo "  skhd is at: $(which skhd)"
-echo "  After granting, run: skhd --restart-service"
+echo "  1. Hammerspoon will prompt for Accessibility — click 'Open System Settings'"
+echo "  2. Add Hammerspoon.app and toggle it ON"
+echo "  3. Then reload: hs -c 'hs.reload()'"
 echo ""
 echo "Verify hooks are loaded in Claude Code: /hooks"
