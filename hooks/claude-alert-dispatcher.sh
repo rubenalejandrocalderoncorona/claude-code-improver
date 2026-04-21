@@ -61,13 +61,30 @@ OSASCRIPT
 # ── Permission mode ────────────────────────────────────────────────────────
 if [ "$MODE" = "permission" ]; then
 
-  # Approve-all shortcut: skip the notification entirely.
+  # Approve-all flag: skip the notification entirely.
   if [ -f "$APPROVE_ALL_FLAG" ]; then
     printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"allow"}}}'
     exit 0
   fi
 
-  RESULT=$("$ALERTER" \
+  # Register a FIFO so approve-all-pending.sh can unblock this waiter.
+  PENDING_DIR="$HOME/.claude/hooks/pending"
+  mkdir -p "$PENDING_DIR"
+
+  # Clean up FIFOs whose owning process is no longer alive (killed mid-wait).
+  for stale in "$PENDING_DIR"/*; do
+    [ -p "$stale" ] || continue
+    owner=$(basename "$stale")
+    kill -0 "$owner" 2>/dev/null || rm -f "$stale"
+  done
+
+  FIFO="$PENDING_DIR/$$"
+  mkfifo "$FIFO"
+  trap 'rm -f "$FIFO"' EXIT
+
+  # Run alerter in background, pipe its output into the FIFO.
+  # 120s timeout ensures the process exits even if the user never interacts.
+  "$ALERTER" \
     --title "$TITLE" \
     --subtitle "$SUBTITLE" \
     --message "$MSG" \
@@ -76,7 +93,14 @@ if [ "$MODE" = "permission" ]; then
     --sender com.apple.Terminal \
     --group "$GROUP" \
     --sound "Glass" \
-    2>/dev/null)
+    --timeout 120 \
+    2>/dev/null > "$FIFO" &
+  ALERTER_PID=$!
+
+  # Block here until either alerter writes its result or approve-all-pending writes "Approve".
+  RESULT=$(cat "$FIFO")
+  # Kill alerter if still running (e.g. approve-all-pending unblocked us).
+  kill "$ALERTER_PID" 2>/dev/null || true
 
   case "$RESULT" in
     "Approve")
@@ -95,6 +119,8 @@ if [ "$MODE" = "permission" ]; then
 elif [ "$MODE" = "stop" ]; then
 
   # Keep com.googlecode.iterm2 here — we WANT iTerm2 to come forward on Show.
+  # Timeout of 30s prevents orphaned alerter processes from accumulating if the
+  # user never interacts with the notification (e.g. rapid session cycling).
   RESULT=$("$ALERTER" \
     --title "$TITLE" \
     --subtitle "$SUBTITLE" \
@@ -104,6 +130,7 @@ elif [ "$MODE" = "stop" ]; then
     --sender com.googlecode.iterm2 \
     --group "$GROUP" \
     --sound "Purr" \
+    --timeout 30 \
     2>/dev/null)
 
   case "$RESULT" in
