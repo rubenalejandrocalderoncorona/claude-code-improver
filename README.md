@@ -24,24 +24,17 @@ That's it. The script installs dependencies, compiles the hotkey app, wires up t
 
 ## Required permissions (one-time, after install)
 
-Three macOS permissions need to be granted manually:
+Two macOS permissions need to be granted manually:
 
-**1. Script Editor — notification alerts**
-> System Settings → Notifications → Script Editor → Alert Style: **Alerts**
-
-*(Without this, Approve/question notifications appear as banners that disappear before you click.)*
-
-**2. iTerm2 — notification alerts**
+**1. iTerm2 — notification alerts** (for "Session finished" notifications)
 > System Settings → Notifications → iTerm2 → Alert Style: **Alerts**
 
-*(Used for the "Session finished" notification.)*
-
-**3. ClaudeApproveAll — Accessibility (for global shortcut)**
-> System Settings → Privacy & Security → Accessibility → **add ClaudeApproveAll**
-
-*(The app will prompt you automatically on first launch — click "Open System Settings" in the dialog.)*
+**2. Terminal — notification alerts** (for permission/question notifications)
+> System Settings → Notifications → Terminal → Alert Style: **Alerts**
 
 **Restart iTerm2** after install so the custom tab title format takes effect.
+
+No Accessibility permission is required — the global shortcut uses Carbon `RegisterEventHotKey`, which works without it.
 
 ## Verify
 
@@ -74,7 +67,7 @@ hooks/
   toggle-approve-all.sh       Toggles ~/.claude/hooks/approve-all.flag
   test-hooks.sh               Smoke tests for each notification type
 hotkey-app/
-  main.swift                  Global CGEventTap daemon (Cmd+Shift+A → toggle)
+  main.swift                  Global Carbon hotkey daemon (Cmd+Shift+A → toggle)
   Info.plist                  LSUIElement app bundle config
 install-claude-hooks.sh       One-command setup
 ```
@@ -84,15 +77,15 @@ install-claude-hooks.sh       One-command setup
 - `claude-notify.sh` receives a JSON event on stdin, finds the TTY of the Claude process via process-tree walk, and sets `user.tabTitle` on that specific iTerm2 session via AppleScript.
 - For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — the script blocks on `alerter`, then writes a `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
 - For `Stop` it runs the dispatcher in the background — clicking Show calls `tell w to select t` + `select s` + `activate` to bring the exact tab forward.
-- Permission and question notifications use `--sender com.apple.scripteditor2` so clicking Approve/answer buttons does **not** bring iTerm2 forward.
-- The global shortcut is a compiled Swift background app (`LSUIElement`) that installs a system-wide `CGEventTap`. It runs as a `LaunchAgent` and survives reboots.
+- Permission and question notifications use `--sender com.apple.Terminal` so clicking Approve/answer buttons does **not** bring any terminal forward.
+- The global shortcut is a compiled Swift background app (`LSUIElement`) using Carbon `RegisterEventHotKey` — no Accessibility permission required. It runs as a `LaunchAgent` and survives reboots.
 
 ## Changelog
 
 ### v2.0.0
 - **Fix: Approve no longer opens the terminal** — switched permission/question notification sender from `com.googlecode.iterm2` to `com.apple.scripteditor2`
 - **Fix: Show now jumps to the correct iTerm2 tab** — `focus_session` now calls `tell w to select t` before `select s`
-- **Fix: global Cmd+Shift+A shortcut now works everywhere** — replaced broken Automator Quick Action with a compiled Swift `CGEventTap` daemon installed as a `LaunchAgent`
+- **Fix: global Cmd+Shift+A shortcut now works everywhere** — replaced broken Automator Quick Action with a compiled Swift Carbon `RegisterEventHotKey` daemon installed as a `LaunchAgent`; no Accessibility permission required
 - Added `hooks/test-hooks.sh` for smoke-testing each notification type
 - Added `hotkey-app/` Swift source for the global hotkey daemon
 
