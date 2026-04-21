@@ -109,16 +109,7 @@ run_test() {
 
     shortcut)
       echo ""
-      echo "TEST: Global shortcut (Cmd+Ctrl+B)"
-
-      # Check Hammerspoon is running
-      if ! pgrep -x Hammerspoon > /dev/null 2>&1; then
-        echo "  FAIL: Hammerspoon is not running."
-        echo "  Run: open /Applications/Hammerspoon.app"
-        echo "  Then grant Accessibility when prompted and run: hs -c 'hs.reload()'"
-        return
-      fi
-      info "Hammerspoon running (PID $(pgrep -x Hammerspoon))"
+      echo "TEST: Global shortcut (approve-all toggle)"
 
       FLAG="$HOME/.claude/hooks/approve-all.flag"
       FLAG_WAS_SET=0
@@ -126,7 +117,7 @@ run_test() {
       BEFORE_STATE=$FLAG_WAS_SET
 
       echo ""
-      echo "  ► Press Cmd+Ctrl+B now (you have 20 seconds, from ANY app)..."
+      echo "  ► Press your shortcut now (you have 20 seconds, from ANY app)..."
       echo ""
 
       FIRED=0
@@ -147,8 +138,7 @@ run_test() {
         echo "  (flag restored to original state)"
       else
         echo "  FAIL: flag state did not change within 20 seconds."
-        echo "  Check: System Settings → Privacy & Security → Accessibility → Hammerspoon enabled?"
-        echo "  Check: hs -c 'hs.reload()' to reload config after granting permission"
+        echo "  Check: System Settings → Keyboard → Shortcuts → Services → General → your shortcut is set"
       fi
       ;;
 

@@ -10,12 +10,16 @@ macOS notifications and global keyboard shortcut for Claude Code. Get actionable
 | Session finished | "Claude has finished" | **Show** jumps to the exact iTerm2 tab |
 | AskUserQuestion | Question + answer buttons | Click to answer without switching windows |
 
-**Toggle Approve-All mode** — run from any terminal, or bind via your company's approved tools:
+**Toggle Approve-All mode** — turns auto-approval ON or OFF for **all running Claude Code sessions** on this machine simultaneously. When ON, every permission request is silently approved without a notification. When OFF, normal per-request prompts resume.
+
+Run from any terminal:
 ```bash
 bash ~/.claude/hooks/toggle-approve-all.sh
 ```
 
-> **Global shortcut `Cmd+Ctrl+B`** — requires Accessibility permission for Hammerspoon. On MDM-managed machines (corporate) this permission may be blocked by policy; use the terminal command above instead.
+Or use the global shortcut **`Cmd+Shift+M`** (via the installed macOS Service) from Finder or any app that doesn't intercept that combo. iTerm2 users: use the terminal command above when iTerm2 is focused.
+
+> **Note:** The shortcut toggles the global approve-all flag — it does not approve a single pending request. Use it before starting a batch of trusted work, then toggle it back OFF when done.
 
 ## Install
 
@@ -33,13 +37,9 @@ bash install-claude-hooks.sh
 **2. Terminal — notification alerts** (for permission/question notifications)
 > System Settings → Notifications → Terminal → Alert Style: **Alerts**
 
-**3. Hammerspoon — Accessibility** (for the global shortcut — skip on MDM-managed machines)
+**3. Hammerspoon — Accessibility** (optional — skip on MDM-managed machines)
 
-Hammerspoon prompts automatically on first launch. Click "Open System Settings", add **Hammerspoon.app**, toggle it ON.
-
-> **macOS Sequoia note:** After every Hammerspoon launch/restart, toggle its Accessibility OFF then back ON in System Settings for key events to register.
->
-> **MDM/corporate machines:** If your machine is managed (e.g. SAP, Jamf), Accessibility grants may be blocked by policy regardless of the toggle state. Use `bash ~/.claude/hooks/toggle-approve-all.sh` directly instead.
+Hammerspoon is installed but on MDM-managed machines (e.g. SAP, Jamf) the Accessibility grant may be blocked by policy. The `Cmd+Shift+M` Service shortcut works without any special permissions.
 
 Then verify the shortcut works:
 ```bash
@@ -54,7 +54,7 @@ bash hooks/test-hooks.sh shortcut
 bash hooks/test-hooks.sh             # all tests
 bash hooks/test-hooks.sh permission  # Approve button, no focus steal
 bash hooks/test-hooks.sh stop        # Show button, correct tab focus
-bash hooks/test-hooks.sh shortcut    # Cmd+Ctrl+B global hotkey
+bash hooks/test-hooks.sh shortcut    # Cmd+Shift+M global shortcut
 ```
 
 Check hooks are loaded in Claude Code:
@@ -82,6 +82,12 @@ install-claude-hooks.sh       One-command setup
 - The global shortcut uses **Hammerspoon** (`~/.hammerspoon/init.lua`). Requires Accessibility. Starts at login.
 
 ## Changelog
+
+### v2.1.0
+- **Global shortcut `Cmd+Shift+M`** via macOS Automator Service — no Accessibility permission required, works on MDM-managed machines
+- Approve-All toggle now clearly documented: affects **all running Claude Code sessions** simultaneously, not a single request
+- Updated shortcut test to be shortcut-agnostic (watches flag state, not a specific key combo)
+- Removed Hammerspoon dependency for shortcut (kept installed but no longer required)
 
 ### v2.0.0
 - **Fix: Approve no longer opens the terminal** — switched sender to `com.apple.Terminal`
