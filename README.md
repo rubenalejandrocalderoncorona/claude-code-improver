@@ -10,7 +10,7 @@ macOS notifications and global keyboard shortcut for Claude Code. Get actionable
 | Session finished | "Claude has finished" | **Show** jumps to the exact iTerm2 tab |
 | AskUserQuestion | Question + answer buttons | Click to answer without switching windows |
 
-**Global shortcut `Cmd+Shift+A`** — toggles Approve-All mode. All future permission prompts are auto-approved silently. Press again to turn off.
+**Global shortcut `Cmd+Ctrl+B`** — toggles Approve-All mode. All future permission prompts are auto-approved silently. Press again to turn off.
 
 ## Install
 
@@ -19,8 +19,6 @@ git clone https://github.com/rubenalejandrocalderoncorona/claude-code-improver.g
 cd claude-code-improver
 bash install-claude-hooks.sh
 ```
-
-That's it. The script installs dependencies, compiles the hotkey app, wires up the hooks, and starts everything.
 
 ## Required permissions (one-time, after install)
 
@@ -32,28 +30,24 @@ That's it. The script installs dependencies, compiles the hotkey app, wires up t
 
 **3. Hammerspoon — Accessibility** (for the global shortcut)
 
-Hammerspoon will prompt automatically on first launch. Click "Open System Settings", add **Hammerspoon.app** and toggle it ON, then reload:
+Hammerspoon prompts automatically on first launch. Click "Open System Settings", add **Hammerspoon.app**, toggle it ON.
+
+> **macOS Sequoia note:** After every Hammerspoon launch/restart, you must toggle its Accessibility permission **off then back on** for key events to register. Go to System Settings → Privacy & Security → Accessibility → toggle Hammerspoon OFF → wait 2s → toggle ON.
+
+Then verify the shortcut works:
 ```bash
-hs -c "hs.reload()"
+bash hooks/test-hooks.sh shortcut
 ```
 
 **Restart iTerm2** after install so the custom tab title format takes effect.
 
 ## Verify
 
-Run hooks smoke tests:
-
 ```bash
-bash hooks/test-hooks.sh
-```
-
-Individual tests:
-
-```bash
-bash hooks/test-hooks.sh permission   # Approve button, no focus steal
-bash hooks/test-hooks.sh stop         # Show button, correct tab focus
-bash hooks/test-hooks.sh question     # Answer buttons, no focus steal
-bash hooks/test-hooks.sh approve-all  # Auto-approve + toggle
+bash hooks/test-hooks.sh             # all tests
+bash hooks/test-hooks.sh permission  # Approve button, no focus steal
+bash hooks/test-hooks.sh stop        # Show button, correct tab focus
+bash hooks/test-hooks.sh shortcut    # Cmd+Ctrl+B global hotkey
 ```
 
 Check hooks are loaded in Claude Code:
@@ -75,19 +69,18 @@ install-claude-hooks.sh       One-command setup
 ## How it works
 
 - `claude-notify.sh` receives a JSON event on stdin, finds the TTY of the Claude process via process-tree walk, and sets `user.tabTitle` on that specific iTerm2 session via AppleScript.
-- For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — the script blocks on `alerter`, then writes a `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
+- For `PermissionRequest` it runs `claude-alert-dispatcher.sh` synchronously — blocks on `alerter`, then writes `{"behavior":"allow"}` or deny JSON to stdout which Claude Code reads.
 - For `Stop` it runs the dispatcher in the background — clicking Show calls `tell w to select t` + `select s` + `activate` to bring the exact tab forward.
-- Permission and question notifications use `--sender com.apple.Terminal` so clicking Approve/answer buttons does **not** bring any terminal forward.
-- The global shortcut uses **Hammerspoon** (a properly Apple-signed app). Config lives in `~/.hammerspoon/init.lua`. It requires Accessibility permission and starts at login.
+- Permission and question notifications use `--sender com.apple.Terminal` so clicking Approve does **not** bring any terminal forward.
+- The global shortcut uses **Hammerspoon** (`~/.hammerspoon/init.lua`). Requires Accessibility. Starts at login.
 
 ## Changelog
 
 ### v2.0.0
-- **Fix: Approve no longer opens the terminal** — switched permission/question notification sender from `com.googlecode.iterm2` to `com.apple.scripteditor2`
-- **Fix: Show now jumps to the correct iTerm2 tab** — `focus_session` now calls `tell w to select t` before `select s`
-- **Fix: global Cmd+Shift+A shortcut now works everywhere** — replaced broken Automator Quick Action with a compiled Swift Carbon `RegisterEventHotKey` daemon installed as a `LaunchAgent`; no Accessibility permission required
-- Added `hooks/test-hooks.sh` for smoke-testing each notification type
-- Added `hotkey-app/` Swift source for the global hotkey daemon
+- **Fix: Approve no longer opens the terminal** — switched sender to `com.apple.Terminal`
+- **Fix: Show now jumps to the correct iTerm2 tab** — added `tell w to select t` before `select s`
+- **Fix: global shortcut** — replaced broken Automator Quick Action with Hammerspoon (`Cmd+Ctrl+B`)
+- Added `hooks/test-hooks.sh` smoke tests
 
 ### v1.0.1
 - Fix double alerts and Approve button not sending to correct session

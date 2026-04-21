@@ -105,7 +105,7 @@ fi
 # Hammerspoon is a properly Apple-signed app. It uses Accessibility permission
 # which macOS honours reliably — unlike ad-hoc signed or Homebrew CLI binaries.
 HS_CONFIG="$HOME/.hammerspoon/init.lua"
-HS_LINE='hs.hotkey.bind({"cmd","ctrl"},"b",function() hs.task.new("/bin/bash",nil,{os.getenv("HOME").."/.claude/hooks/toggle-approve-all.sh"}):start() end)'
+HS_LINE='hs.hotkey.bind({"cmd","ctrl"},"b",function() hs.task.new("/bin/bash",function() end,{os.getenv("HOME").."/.claude/hooks/toggle-approve-all.sh"}):start() end)'
 
 if ! command -v hs &>/dev/null && [ ! -d "/Applications/Hammerspoon.app" ]; then
   echo "Installing Hammerspoon..."
@@ -115,7 +115,7 @@ echo "✓ Hammerspoon installed"
 
 HS_PRELUDE='hs.ipc.cliInstall()'
 HS_COMMENT='-- Claude Code: toggle approve-all mode with Cmd+Ctrl+B'
-HS_LINE='hs.hotkey.bind({"cmd","ctrl"},"b",function() hs.task.new("/bin/bash",nil,{os.getenv("HOME").."/.claude/hooks/toggle-approve-all.sh"}):start() end)'
+HS_LINE='hs.hotkey.bind({"cmd","ctrl"},"b",function() hs.task.new("/bin/bash",function() end,{os.getenv("HOME").."/.claude/hooks/toggle-approve-all.sh"}):start() end)'
 
 mkdir -p "$(dirname "$HS_CONFIG")"
 if ! grep -q "toggle-approve-all" "$HS_CONFIG" 2>/dev/null; then
