@@ -101,6 +101,9 @@ case "$EVENT" in
 
   Stop)
     set_tab_title "${PROJECT} [waiting]"
+    # Skip Stop notifications for headless sub-agent sessions (no TTY = no
+    # terminal to focus, and these fire rapidly causing notification floods).
+    [ -z "$SESSION_TTY" ] && exit 0
     # Launch dispatcher in background — it blocks on alerter until user acts.
     bash "$DISPATCHER" stop \
       "$SESSION_TTY" \
