@@ -114,8 +114,13 @@ if [ "$MODE" = "permission" ]; then
       focus_session
       # No JSON output → Claude Code shows its own built-in dialog.
       ;;
-    *)
+    "@TIMEOUT")
+      # Timeout elapsed with no user action → deny so Claude doesn't hang forever.
       printf '{"hookSpecificOutput":{"hookEventName":"PermissionRequest","decision":{"behavior":"deny"}}}'
+      ;;
+    *)
+      # Dismissed / swiped away / close button / notification center cleared:
+      # output nothing — Claude Code keeps waiting and will show its own dialog.
       ;;
   esac
 
