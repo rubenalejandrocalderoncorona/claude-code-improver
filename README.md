@@ -29,6 +29,40 @@ cd claude-code-improver
 bash install-claude-hooks.sh
 ```
 
+## Manage (disable / enable / uninstall)
+
+Use `manage-claude-hooks.sh` after cloning. All commands back up `~/.claude/settings.json` first.
+
+### Disable (keep files, just turn off hooks)
+
+Removes the `claude-notify.sh` hook entries from `~/.claude/settings.json`. The hook scripts stay on disk so you can re-enable without reinstalling.
+
+```bash
+bash manage-claude-hooks.sh disable
+```
+
+Restart Claude Code for the change to take effect.
+
+### Re-enable
+
+Re-adds the hook entries to `~/.claude/settings.json`.
+
+```bash
+bash manage-claude-hooks.sh enable
+```
+
+Restart Claude Code for the change to take effect.
+
+### Uninstall (remove everything)
+
+Removes hook entries from `~/.claude/settings.json`, deletes the hook scripts from `~/.claude/hooks/`, removes the Hammerspoon hotkey lines, and removes the Automator Service.
+
+```bash
+bash manage-claude-hooks.sh uninstall
+```
+
+> iTerm2 custom tab title is not reverted automatically — restore it manually in iTerm2 → Preferences → Profiles → General → Title.
+
 ## Required permissions (one-time, after install)
 
 **1. iTerm2 — notification alerts** (for "Session finished" notifications)
@@ -71,6 +105,7 @@ hooks/
   toggle-approve-all.sh       Toggles ~/.claude/hooks/approve-all.flag
   test-hooks.sh               Smoke tests for each notification type
 install-claude-hooks.sh       One-command setup
+manage-claude-hooks.sh        Disable / enable / uninstall
 ```
 
 ## How it works
