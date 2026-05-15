@@ -150,11 +150,18 @@ cmd_uninstall() {
     echo "⚠  $SETTINGS not found — skipping settings cleanup"
   fi
 
-  # 2. Delete hook scripts
-  for f in claude-notify.sh claude-alert-dispatcher.sh toggle-approve-all.sh; do
+  # 2. Delete hook scripts and ClaudeNotifier assets
+  for f in claude-notify.sh claude-alert-dispatcher.sh toggle-approve-all.sh claude-notifications; do
     target="$HOOK_DIR/$f"
     if [ -f "$target" ]; then
       rm "$target"
+      echo "✓ Removed $target"
+    fi
+  done
+  for d in ClaudeNotifier.app ClaudeNotifications.app sounds; do
+    target="$HOOK_DIR/$d"
+    if [ -e "$target" ]; then
+      rm -rf "$target"
       echo "✓ Removed $target"
     fi
   done

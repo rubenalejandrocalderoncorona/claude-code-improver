@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# claude-alert-dispatcher.sh  v2.1.0
+# claude-alert-dispatcher.sh  v3.0.0
 # Called by claude-notify.sh to show an alerter notification and handle clicks.
 #
 # Usage:
 #   permission <tty> <group> <title> <subtitle> <message>
-#   stop       <tty> <group> <title> <subtitle> <message>
+#   stop       <tty> <group> <title> <subtitle> <message> <cwd>
 #   question   <tty> <group> <title> <subtitle> <question_text> <options_json>
 #
 # permission mode (synchronous):
@@ -15,11 +15,9 @@
 #   and clicking Approve does NOT bring Terminal forward (verified).
 #
 # stop mode (runs in background):
-#   Shows alerter with Show/Ignore. "Show" focuses the iTerm2 session.
-#   Uses com.googlecode.iterm2 as sender (intentional: we want iTerm2 to
-#   come forward when the user explicitly clicks Show).
-#   Deduplication: if an alerter for this group is already running, exits
-#   immediately (the existing process will handle the notification).
+#   Shows a ClaudeNotifier.app banner (signed macOS app — real banners).
+#   Clicking the notification runs focus-window for VS Code or open -a iTerm
+#   for iTerm2. ClaudeNotifier handles dedup via -group.
 #
 # question mode (synchronous):
 #   Shows alerter with each answer option as a button + "Show" button.
@@ -33,11 +31,13 @@ GROUP="$3"
 TITLE="$4"
 SUBTITLE="$5"
 MSG="$6"          # message for permission/stop; question_text for question mode
-OPTIONS_JSON="$7" # JSON array of option labels, only used in question mode
+OPTIONS_JSON="$7" # JSON array of option labels (question mode) or CWD (stop mode)
 
 ALERTER="/opt/homebrew/bin/alerter"
 APPROVE_ALL_FLAG="$HOME/.claude/hooks/approve-all.flag"
-LOCKS_DIR="$HOME/.claude/hooks/locks"
+HOOK_DIR="$HOME/.claude/hooks"
+CLAUDE_NOTIFICATIONS="$HOOK_DIR/claude-notifications"
+CLAUDE_NOTIFIER_APP="$HOOK_DIR/ClaudeNotifier.app"
 
 # ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -127,37 +127,38 @@ if [ "$MODE" = "permission" ]; then
 # ── Stop mode ──────────────────────────────────────────────────────────────
 elif [ "$MODE" = "stop" ]; then
 
-  # Deduplication: only one Stop alerter per group at a time.
-  # If the lock file exists and its PID is still alive, exit immediately —
-  # the running process will handle (and replace) the notification.
-  mkdir -p "$LOCKS_DIR"
-  LOCKFILE="$LOCKS_DIR/stop-${GROUP}"
-  if [ -f "$LOCKFILE" ]; then
-    existing_pid=$(cat "$LOCKFILE" 2>/dev/null)
-    if [ -n "$existing_pid" ] && kill -0 "$existing_pid" 2>/dev/null; then
-      exit 0
+  CWD="$OPTIONS_JSON"   # 7th arg is CWD in stop mode
+
+  # Build the click-to-focus command for ClaudeNotifier.app's -execute flag.
+  # Detect which terminal owns this session via env vars inherited by the hook.
+  build_focus_cmd() {
+    # VS Code sets TERM_PROGRAM=vscode; Cursor sets it to cursor
+    case "${TERM_PROGRAM:-}" in
+      vscode)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.microsoft.VSCode' '$CWD'" ; return ;;
+      cursor)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.todesktop.230313mzl4w4u92' '$CWD'" ; return ;;
+    esac
+    # iTerm2 sets ITERM_SESSION_ID
+    if [ -n "${ITERM_SESSION_ID:-}" ]; then
+      echo "open -a iTerm"
+      return
     fi
-  fi
-  echo $$ > "$LOCKFILE"
-  trap 'rm -f "$LOCKFILE"' EXIT
+    # Fallback: activate whatever terminal is frontmost
+    echo "open -a Terminal"
+  }
 
-  RESULT=$("$ALERTER" \
-    --title "$TITLE" \
-    --subtitle "$SUBTITLE" \
-    --message "$MSG" \
-    --actions "Show" \
-    --close-label "Ignore" \
-    --sender com.googlecode.iterm2 \
-    --group "$GROUP" \
-    --sound "Purr" \
-    --timeout 30 \
-    2>/dev/null)
+  FOCUS_CMD=$(build_focus_cmd)
 
-  case "$RESULT" in
-    "Show"|"@CONTENTCLICKED"|"@TITLECLICKED")
-      focus_session
-      ;;
-  esac
+  # Fire ClaudeNotifier.app via LaunchServices (required for UNUserNotificationCenter).
+  # Runs in background — we don't block on the banner.
+  open -W -n -g "$CLAUDE_NOTIFIER_APP" --args \
+    -launchedViaLaunchServices \
+    -title "$TITLE" \
+    -subtitle "$SUBTITLE" \
+    -message "$MSG" \
+    -group "$GROUP" \
+    -execute "$FOCUS_CMD" \
+    2>/dev/null &
+  disown
 
 # ── Question mode ──────────────────────────────────────────────────────────
 elif [ "$MODE" = "question" ]; then

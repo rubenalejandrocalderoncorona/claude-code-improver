@@ -104,13 +104,14 @@ case "$EVENT" in
     # Skip Stop notifications for headless sub-agent sessions (no TTY = no
     # terminal to focus, and these fire rapidly causing notification floods).
     [ -z "$SESSION_TTY" ] && exit 0
-    # Launch dispatcher in background — it blocks on alerter until user acts.
+    # Launch dispatcher in background — fires ClaudeNotifier.app banner.
     bash "$DISPATCHER" stop \
       "$SESSION_TTY" \
       "claude-stop-${PROJECT}" \
       "Claude — ${PROJECT}" \
       "Session finished" \
-      "Claude has finished. Click Show to switch to the session." \
+      "Claude has finished. Click to switch to the session." \
+      "$CWD" \
       &
     disown
     ;;

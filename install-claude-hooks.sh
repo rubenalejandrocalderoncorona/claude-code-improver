@@ -39,7 +39,16 @@ cp "$SCRIPT_DIR/hooks/toggle-approve-all.sh"     "$HOOK_DIR/toggle-approve-all.s
 chmod +x "$HOOK_DIR/claude-notify.sh" \
          "$HOOK_DIR/claude-alert-dispatcher.sh" \
          "$HOOK_DIR/toggle-approve-all.sh"
-echo "✓ Hook scripts installed to $HOOK_DIR"
+
+# ClaudeNotifier.app + binary (used for Stop banners with click-to-focus)
+cp "$SCRIPT_DIR/vendor/bin/claude-notifications" "$HOOK_DIR/claude-notifications"
+chmod +x "$HOOK_DIR/claude-notifications"
+rm -rf "$HOOK_DIR/ClaudeNotifier.app" "$HOOK_DIR/ClaudeNotifications.app"
+cp -R "$SCRIPT_DIR/vendor/bin/ClaudeNotifier.app"      "$HOOK_DIR/ClaudeNotifier.app"
+cp -R "$SCRIPT_DIR/vendor/bin/ClaudeNotifications.app" "$HOOK_DIR/ClaudeNotifications.app"
+rm -rf "$HOOK_DIR/sounds"
+cp -R "$SCRIPT_DIR/vendor/sounds" "$HOOK_DIR/sounds"
+echo "✓ Hook scripts + ClaudeNotifier installed to $HOOK_DIR"
 
 # ── 3. Merge hooks into ~/.claude/settings.json ───────────────────────────
 # PreToolUse has TWO entries:
