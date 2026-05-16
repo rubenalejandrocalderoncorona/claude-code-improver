@@ -137,9 +137,9 @@ elif [ "$MODE" = "stop" ]; then
       vscode)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.microsoft.VSCode' '$CWD'" ; return ;;
       cursor)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.todesktop.230313mzl4w4u92' '$CWD'" ; return ;;
     esac
-    # iTerm2 sets ITERM_SESSION_ID
+    # iTerm2 sets ITERM_SESSION_ID — use focus-window for exact tab targeting
     if [ -n "${ITERM_SESSION_ID:-}" ]; then
-      echo "open -a iTerm"
+      echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.googlecode.iterm2' '$CWD'"
       return
     fi
     # Fallback: activate whatever terminal is frontmost
@@ -149,6 +149,7 @@ elif [ "$MODE" = "stop" ]; then
   FOCUS_CMD=$(build_focus_cmd)
 
   # Fire ClaudeNotifier.app via LaunchServices (required for UNUserNotificationCenter).
+  # -timeSensitive keeps the banner on screen until dismissed and bypasses Focus Mode.
   # Runs in background — we don't block on the banner.
   open -W -n -g "$CLAUDE_NOTIFIER_APP" --args \
     -launchedViaLaunchServices \
@@ -156,6 +157,7 @@ elif [ "$MODE" = "stop" ]; then
     -subtitle "$SUBTITLE" \
     -message "$MSG" \
     -group "$GROUP" \
+    -timeSensitive \
     -execute "$FOCUS_CMD" \
     2>/dev/null &
   disown
