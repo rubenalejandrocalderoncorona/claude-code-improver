@@ -5,8 +5,10 @@
 # PermissionRequest: SYNCHRONOUS — blocks on alerter (or approve-all flag),
 #   then outputs JSON decision to stdout which Claude Code reads.
 #
-# PreToolUse / AskUserQuestion: SYNCHRONOUS — shows option buttons in a
-#   notification; chosen answer is returned as PreToolUse updatedInput JSON.
+# PreToolUse / AskUserQuestion: SYNCHRONOUS — fires a ClaudeNotifier.app
+#   banner alerting the user that input is needed, then outputs nothing so
+#   Claude's built-in question dialog handles the response. Approve-all is
+#   never checked — user questions always require real user input.
 #
 # Stop: runs dispatcher in background; "Show" focuses the session.
 #
@@ -70,22 +72,20 @@ case "$EVENT" in
 
   PreToolUse)
     if [ "$TOOL" = "AskUserQuestion" ]; then
-      # Extract the first question and its options from the tool_input.
       QUESTION_TEXT=$(echo "$INPUT" | jq -r '.tool_input.questions[0].question // ""')
       QUESTION_HEADER=$(echo "$INPUT" | jq -r '.tool_input.questions[0].header // "Question"')
-      # Pass the full questions array so the dispatcher can rebuild updatedInput.
-      OPTIONS_JSON=$(echo "$INPUT" | jq -c '.tool_input.questions[0].options // []')
 
-      set_tab_title "${PROJECT} [question]"
+      set_tab_title "${PROJECT} [INPUT NEEDED]"
 
-      # Run synchronously — dispatcher blocks on alerter then prints JSON.
+      # Fire ClaudeNotifier.app banner and output nothing — Claude's own dialog
+      # handles the response. Approve-all is intentionally bypassed for questions.
       bash "$DISPATCHER" question \
         "$SESSION_TTY" \
         "claude-question-${PROJECT}" \
         "Claude — ${PROJECT}" \
         "$QUESTION_HEADER" \
         "$QUESTION_TEXT" \
-        "$OPTIONS_JSON"
+        "$CWD"
       exit 0
     else
       # All other tools: just update tab title asynchronously.

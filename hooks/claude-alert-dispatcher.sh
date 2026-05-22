@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# claude-alert-dispatcher.sh  v3.0.0
+# claude-alert-dispatcher.sh  v3.2.0
 # Called by claude-notify.sh to show an alerter notification and handle clicks.
 #
 # Usage:
 #   permission <tty> <group> <title> <subtitle> <message>
 #   stop       <tty> <group> <title> <subtitle> <message> <cwd>
-#   question   <tty> <group> <title> <subtitle> <question_text> <options_json>
+#   question   <tty> <group> <title> <subtitle> <question_text> <cwd>
 #
 # permission mode (synchronous):
 #   If approve-all.flag exists → immediately prints allow JSON and exits.
@@ -20,10 +20,10 @@
 #   for iTerm2. ClaudeNotifier handles dedup via -group.
 #
 # question mode (synchronous):
-#   Shows alerter with each answer option as a button + "Show" button.
-#   Clicking an option prints a PreToolUse updatedInput JSON decision.
-#   Clicking Show focuses the session (no JSON — Claude shows its own dialog).
-#   Uses com.apple.Terminal so clicking an answer doesn't open iTerm2.
+#   Shows a ClaudeNotifier.app banner alerting the user that input is needed.
+#   Clicking focuses the terminal session. Outputs NOTHING — Claude's own
+#   built-in question dialog handles the interaction. Approve-all is never
+#   checked here; user questions always require real user input.
 
 MODE="$1"
 TTY="$2"
@@ -40,6 +40,56 @@ CLAUDE_NOTIFICATIONS="$HOOK_DIR/claude-notifications"
 CLAUDE_NOTIFIER_APP="$HOOK_DIR/ClaudeNotifier.app"
 
 # ── Helpers ────────────────────────────────────────────────────────────────
+
+# Returns the bundle ID of the terminal/IDE that owns this hook session.
+# Used as -activate so the macOS "Show" button focuses the right app.
+terminal_bundle_id() {
+  case "${TERM_PROGRAM:-}" in
+    vscode)  echo "com.microsoft.VSCode" ; return ;;
+    cursor)  echo "com.todesktop.230313mzl4w4u92" ; return ;;
+  esac
+  if [ -n "${ITERM_SESSION_ID:-}" ]; then
+    echo "com.googlecode.iterm2"
+    return
+  fi
+  echo "com.apple.Terminal"
+}
+
+# Returns the shell command for -execute (fine-grained tab/window focus).
+build_focus_cmd() {
+  local cwd="$1"
+  case "${TERM_PROGRAM:-}" in
+    vscode)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.microsoft.VSCode' '$cwd'" ; return ;;
+    cursor)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.todesktop.230313mzl4w4u92' '$cwd'" ; return ;;
+  esac
+  if [ -n "${ITERM_SESSION_ID:-}" ]; then
+    echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.googlecode.iterm2' '$cwd'"
+    return
+  fi
+  echo "open -a Terminal"
+}
+
+# Fire a ClaudeNotifier.app banner. Both -activate and -execute are set so
+# the "Show" button (activate) AND body click (execute) both land in the
+# right terminal/IDE window.
+fire_banner() {
+  local title="$1" subtitle="$2" msg="$3" group="$4" cwd="$5"
+  local bundle focus_cmd
+  bundle=$(terminal_bundle_id)
+  focus_cmd=$(build_focus_cmd "$cwd")
+
+  open -W -n -g "$CLAUDE_NOTIFIER_APP" --args \
+    -launchedViaLaunchServices \
+    -title "$title" \
+    -subtitle "$subtitle" \
+    -message "$msg" \
+    -group "$group" \
+    -timeSensitive \
+    -activate "$bundle" \
+    -execute "$focus_cmd" \
+    2>/dev/null &
+  disown
+}
 
 focus_session() {
   osascript 2>/dev/null <<OSASCRIPT || true
@@ -128,85 +178,17 @@ if [ "$MODE" = "permission" ]; then
 elif [ "$MODE" = "stop" ]; then
 
   CWD="$OPTIONS_JSON"   # 7th arg is CWD in stop mode
-
-  # Build the click-to-focus command for ClaudeNotifier.app's -execute flag.
-  # Detect which terminal owns this session via env vars inherited by the hook.
-  build_focus_cmd() {
-    # VS Code sets TERM_PROGRAM=vscode; Cursor sets it to cursor
-    case "${TERM_PROGRAM:-}" in
-      vscode)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.microsoft.VSCode' '$CWD'" ; return ;;
-      cursor)  echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.todesktop.230313mzl4w4u92' '$CWD'" ; return ;;
-    esac
-    # iTerm2 sets ITERM_SESSION_ID — use focus-window for exact tab targeting
-    if [ -n "${ITERM_SESSION_ID:-}" ]; then
-      echo "\"$CLAUDE_NOTIFICATIONS\" focus-window 'com.googlecode.iterm2' '$CWD'"
-      return
-    fi
-    # Fallback: activate whatever terminal is frontmost
-    echo "open -a Terminal"
-  }
-
-  FOCUS_CMD=$(build_focus_cmd)
-
-  # Fire ClaudeNotifier.app via LaunchServices (required for UNUserNotificationCenter).
-  # -timeSensitive keeps the banner on screen until dismissed and bypasses Focus Mode.
-  # Runs in background — we don't block on the banner.
-  open -W -n -g "$CLAUDE_NOTIFIER_APP" --args \
-    -launchedViaLaunchServices \
-    -title "$TITLE" \
-    -subtitle "$SUBTITLE" \
-    -message "$MSG" \
-    -group "$GROUP" \
-    -timeSensitive \
-    -execute "$FOCUS_CMD" \
-    2>/dev/null &
-  disown
+  fire_banner "$TITLE" "$SUBTITLE" "$MSG" "$GROUP" "$CWD"
 
 # ── Question mode ──────────────────────────────────────────────────────────
+# Fire a ClaudeNotifier.app banner so the user knows input is needed, then
+# output nothing — Claude's own built-in question dialog stays active and
+# the user answers there. Approve-all mode is intentionally never checked here.
 elif [ "$MODE" = "question" ]; then
 
-  QUESTION_TEXT="$MSG"
+  CWD="$OPTIONS_JSON"   # 7th arg is CWD in question mode
+  fire_banner "$TITLE" "$SUBTITLE" "$MSG" "$GROUP" "$CWD"
 
-  ACTIONS=$(echo "$OPTIONS_JSON" | jq -r '
-    [ .[:3][] ] | map(.label) | join(",")
-  ' 2>/dev/null)
-  [ -n "$ACTIONS" ] && ACTIONS="${ACTIONS},Show" || ACTIONS="Show"
-
-  RESULT=$("$ALERTER" \
-    --title "$TITLE" \
-    --subtitle "$SUBTITLE" \
-    --message "$QUESTION_TEXT" \
-    --actions "$ACTIONS" \
-    --close-label "Dismiss" \
-    --sender com.apple.Terminal \
-    --group "$GROUP" \
-    --sound "Glass" \
-    2>/dev/null)
-
-  case "$RESULT" in
-    "Show"|"@CONTENTCLICKED"|"@TITLECLICKED")
-      focus_session
-      ;;
-    "@CLOSED"|"Dismiss"|"")
-      ;;
-    *)
-      CHOSEN="$RESULT"
-      ANSWER_JSON=$(jq -n \
-        --argjson questions "$OPTIONS_JSON" \
-        --arg qtext "$QUESTION_TEXT" \
-        --arg answer "$CHOSEN" \
-        '{
-          hookSpecificOutput: {
-            hookEventName: "PreToolUse",
-            permissionDecision: "allow",
-            updatedInput: {
-              questions: $questions,
-              answers: { ($qtext): $answer }
-            }
-          }
-        }')
-      printf '%s' "$ANSWER_JSON"
-      ;;
-  esac
+  # Output nothing — Claude keeps its built-in dialog open for the user to answer.
 
 fi
